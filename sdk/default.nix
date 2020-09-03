@@ -68,7 +68,7 @@ rec {
          };
        } ''
        mkdir $out
-       monkeyc -y ${developer_key} -o $out/program.prg -f ${path}/*.jungle
+       monkeyc --warn -y ${developer_key} -o $out/program.prg -f ${path}/*.jungle
   ''; in prg;
 }
 
