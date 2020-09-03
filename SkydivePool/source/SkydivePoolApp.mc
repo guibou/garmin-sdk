@@ -3,8 +3,11 @@ using Toybox.System;
 
 (:glance) class SkydivePoolApp extends App.AppBase {
     var pool;
-    var reservePool;
+    var poolSize;
+
     var draw;
+
+    const nbFigures = 22 + 16;
 
     function initialize() {
         App.AppBase.initialize();
@@ -17,19 +20,22 @@ using Toybox.System;
     }
 
     function initPool() {
-        reservePool = new [0];
-        pool = new [0];
+        poolSize = nbFigures;
+        pool = new [nbFigures];
 
+        var offset = 0;
         for(var i = 1; i <= 22; i++)
         {
-            pool.add(i);
+            pool[offset] = i;
+            offset += 1;
         }
 
         for(var c = 'A'; c <= 'Q'; c++)
         {
             if(c != 'I')
             {
-                pool.add(c);
+                pool[offset] = c;
+                offset += 1;
             }
         }
     }
@@ -40,16 +46,18 @@ using Toybox.System;
 
         while(drawPoints < 5)
         {
-            if(pool.size() == 0)
+            if(poolSize == 0)
             {
-                pool = reservePool;
-                reservePool = new [0];
+                poolSize = nbFigures;
             }
 
-            var r = Math.rand() % pool.size();
+            var r = Math.rand() % poolSize;
             var picked = pool[r];
-            pool.remove(picked); // O(n) I guess. That's awful!
-            reservePool.add(picked);
+            poolSize -= 1;
+
+            // Remove from pool, move to the end
+            pool[r] = pool[poolSize];
+            pool[poolSize] = picked;
 
             if(drawPoints > 0)
             {
