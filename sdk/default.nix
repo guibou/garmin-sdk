@@ -1,24 +1,9 @@
 {runCommand, steamPackages, stdenv, fetchurl, unzip, makeWrapper,
-autoPatchelfHook, zlib, expat, pango, libjpeg, libsoup, gtk2, libpng,
-systemd, steam-run-native, lib, adoptopenjdk-bin, writeScript}:
-
-let
-  # The simulator needs a version of webkitgtk-1.0, which I only found in nixos-16.03.
-  # This part is hence:
-  # - non reproducible (because the channel can change)
-  # - tied to this old channel
-  old_webkit = (import (fetchTarball channel:nixos-16.03) {}).webkitgtk2;
-
-  steam-runtime2 = runCommand "make-steam-runtime2" {}
-  ''
-  mkdir -p $out/lib
-  cp -R ${steamPackages.steam-runtime}/usr/lib/x86_64-linux-gnu/* $out/lib
-  cp -R ${steamPackages.steam-runtime}/lib/x86_64-linux-gnu/* $out/lib
-  '';
-in
+autoPatchelfHook, zlib, expat, pango, libjpeg, libsoup_2_4, gtk2, libpng,
+systemd, steam-run-native, lib, temurin-bin, writeScript, webkitgtk2, libpng12, libjpeg8, libusb1, writeScriptBin}:
 rec {
-  connect-iq = stdenv.mkDerivation {
-    name = "connect-iq";
+  connectiq = stdenv.mkDerivation {
+    name = "connectiq";
 
     src = fetchurl {
       url = "https://developer.garmin.com/downloads/connect-iq/sdks/connectiq-sdk-lin-3.1.9-2020-06-24-1cc9d3a70.zip";
@@ -26,9 +11,9 @@ rec {
     };
 
     nativeBuildInputs = [ unzip makeWrapper autoPatchelfHook ];
-    buildInputs = [ zlib expat pango libjpeg libsoup gtk2 libpng steam-runtime2 old_webkit systemd ];
+    buildInputs = [ zlib expat pango libjpeg libsoup_2_4 gtk2 libpng libpng12 libjpeg8 webkitgtk2 systemd libusb1 ];
 
-    runtimeDependencies = [ steam-runtime2 ];
+    runtimeDependencies = [ ];
 
     sourceRoot = ".";
 
@@ -39,8 +24,7 @@ rec {
       for i in $(find $out/bin -maxdepth 1 -executable -type f)
       do
         wrapProgram $i \
-         --prefix PATH : ${lib.makeBinPath [adoptopenjdk-bin]}:$out/bin
-         # --suffix LD_LIBRARY_PATH : ${lib.makeLibraryPath [steam-runtime2]}:$out/bin
+         --prefix PATH : ${lib.makeBinPath [temurin-bin]}:$out/bin
       done
 
       cat <<MULTILINE > $out/bin/connectiq_nix
@@ -56,14 +40,14 @@ rec {
 
   garminProgram = path: developer_key: let
     prg = runCommand "build-program" {
-       buildInputs = [connect-iq];
+       buildInputs = [connectiq];
 
        passthru = {
          # Runs a simulator
-         sim = writeScript "sim" ''
+         simulator = writeScriptBin "simulator" ''
            #!/usr/bin/env sh
-           ${connect-iq}/bin/connectiq_nix&
-           ${connect-iq}/bin/monkeydo ${prg}/program.prg fr645
+           ${connectiq}/bin/connectiq_nix&
+           ${connectiq}/bin/monkeydo ${prg}/program.prg fr645
          '';
          };
        } ''
@@ -71,17 +55,3 @@ rec {
        monkeyc --warn -y ${developer_key} -o $out/program.prg -f ${path}/*.jungle
   ''; in prg;
 }
-
-/*
-Notes and TODOs
-
-Stuff that can be improved.
-
-- steam-runtime2 exists because I needed the library of steam-runtime
-  in an $out/lib so autoPatchelfHook works.
-- it may be possible to split the simulator from the rest of the
-  toolchain. The simulator part is the only one which uses the webkit
-  runtime. Doing this split will improve the quality by making a fully
-  reproducible and lighter build toolchain (that's important)
-- don't use `connectiq` to run the simulator, use `simulator_nix`.
-*/
